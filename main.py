@@ -9,11 +9,11 @@ app = FastAPI()
 OWNER_PHONE = "966537960319"
 
 # 2. The Google Maps Review Link (Get this from the business Google Profile)
-GOOGLE_MAPS_LINK = "https://www.google.com/maps/place/Harat+Ward+Khobar+%7C+%D8%AD%D8%A7%D8%B1%D8%A9+%D9%88%D8%B1%D8%AF+%D8%A7%D9%84%D8%AE%D8%A8%D8%B1%E2%80%AD/@26.2860874,50.1978741,17z/data=!4m8!3m7!1s0x3e49e9c1ddd314e1:0x5a0081a9d176db77!8m2!3d26.2846974!4d50.1961283!9m1!1b1!16s%2Fg%2F11lc0h2sbc?entry=ttu&g_ep=EgoyMDI1MTIwOS4wIKXMDSoASAFQAw%3D%3D"
+GOOGLE_MAPS_LINK = "https://search.google.com/local/writereview?placeid=ChIJ4RTT3cHpST4Rd9t20amBAFo"
 
 # --- BUSINESS INFO ---
-BUSINESS_NAME_EN = "Al-Khobar Burger Co."
-BUSINESS_NAME_AR = "مطعم برجر الخبر"
+BUSINESS_NAME_EN = "Harat Ward Co."
+BUSINESS_NAME_AR = "مطعم حاره ورد الخبر"
 
 HTML_BASE = f"""
 <!DOCTYPE html>
@@ -211,5 +211,6 @@ def submit_feedback(complaint: str = Form(...)):
 
 if __name__ == "__main__":
     import uvicorn
+
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
