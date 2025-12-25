@@ -141,8 +141,9 @@ def feedback_page(client_id: str):
     """
     return HTMLResponse(HTML_BASE.replace("{content}", content))
 
+# --- 🔥 FIX IS HERE: Made complaint optional with default="" ---
 @app.post("/submit")
-def submit_feedback(client_id: str = Form(...), complaint: str = Form(...)):
+def submit_feedback(client_id: str = Form(...), complaint: str = Form(default="")):
     client = CLIENTS.get(client_id)
     
     formatted_text = f"🚨 *{client['name_en']} Feedback*\n\n{complaint}"
