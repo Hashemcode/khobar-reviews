@@ -7,23 +7,23 @@ app = FastAPI()
 # --- ⚙️ CONFIGURATION: THE DATABASE ---
 # Just add your 3 targets here.
 CLIENTS = {
-    "harat": {
-        "name_en": "Harat Ward Co.",
-        "name_ar": "مطعم حارة ورد الخبر",
-        "phone": "966537960319", # Your phone for the demo
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJ4RTT3cHpST4Rd9t20amBAFo"
+    "Unico": {
+        "name_en": "Unico Cafe",
+        "name_ar": "اونيكو كافية",
+        "phone": "966580996680", # Your phone for the demo
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs"
     },
-    "burger": {
-        "name_en": "Burger Example",
-        "name_ar": "برجر للتجربة",
-        "phone": "966537960319", # Your phone
-        "google_link": "https://google.com" # Put their link here
+    "effect_coffee": {
+        "name_en": "Effect Coffee",
+        "name_ar": " ايفيكت كوفي",
+        "phone": "966502443461", # Your phone
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28" # Put their link here
     },
-    "shawarma": {
-        "name_en": "Shawarma King",
-        "name_ar": "ملك الشاورما",
-        "phone": "966537960319", # Your phone
-        "google_link": "https://google.com" 
+    "la-gioia": {
+        "name_en": "la gioia",
+        "name_ar": "مطعم لاجويا",
+        "phone": "966539979957", # Your phone
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJiUENOXjpST4R07Il0f6NCPI" 
     }
 }
 
@@ -151,3 +151,4 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
