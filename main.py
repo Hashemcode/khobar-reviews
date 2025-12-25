@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, HTTPException
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 import urllib.parse
 
@@ -9,19 +9,19 @@ CLIENTS = {
     "unico": {
         "name_en": "Unico Cafe",
         "name_ar": "اونيكو كافيه",
-        "phone": "966580996680", # ⚠️ CHECK: Is this YOUR number or THEIRS?
+        "phone": "966580996680", 
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs"
     },
     "effect": {
         "name_en": "Effect Coffee",
         "name_ar": "ايفيكت كوفي",
-        "phone": "966502443461", # ⚠️ CHECK: Is this YOUR number or THEIRS?
+        "phone": "966502443461", 
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28"
     },
     "lagioia": {
         "name_en": "La Gioia",
         "name_ar": "مطعم لاجويا",
-        "phone": "966539979957", # ⚠️ CHECK: Is this YOUR number or THEIRS?
+        "phone": "966539979957", 
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJiUENOXjpST4R07Il0f6NCPI" 
     }
 }
@@ -73,8 +73,17 @@ updateText();
 </html>
 """
 
+# --- 1. DYNAMIC ROUTING WITH LOGGING ---
 @app.get("/{client_id}", response_class=HTMLResponse)
-def rate_page(client_id: str):
+async def rate_page(client_id: str, request: Request):
+    # --- LOGGING START ---
+    # This prints to the Render System Log
+    user_agent = request.headers.get('user-agent', 'Unknown')
+    ip = request.client.host if request.client else "Unknown"
+    print(f"🔔 NEW SCAN: {client_id.upper()} | IP: {ip} | Device: {user_agent}")
+    # --- LOGGING END ---
+
+    # Check if this restaurant exists in our list
     client = CLIENTS.get(client_id)
     if not client:
         return HTMLResponse("<h1>Error: Restaurant Not Found</h1>", status_code=404)
@@ -114,7 +123,9 @@ def rate_page(client_id: str):
 def process_rating(client_id: str = Form(...), stars: int = Form(...)):
     client = CLIENTS.get(client_id)
     if stars >= 4:
+        # Redirect to THEIR specific Google Map
         return RedirectResponse(client['google_link'], status_code=303)
+    # Redirect to feedback page (keeping the client_id)
     return RedirectResponse(f"/{client_id}/feedback", status_code=303)
 
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
@@ -133,9 +144,13 @@ def feedback_page(client_id: str):
 @app.post("/submit")
 def submit_feedback(client_id: str = Form(...), complaint: str = Form(...)):
     client = CLIENTS.get(client_id)
+    
     formatted_text = f"🚨 *{client['name_en']} Feedback*\n\n{complaint}"
     encoded_text = urllib.parse.quote(formatted_text)
+    
+    # Send to the specific phone number for this client
     whatsapp_link = f"https://wa.me/{client['phone']}?text={encoded_text}"
+    
     return RedirectResponse(whatsapp_link, status_code=303)
 
 if __name__ == "__main__":
