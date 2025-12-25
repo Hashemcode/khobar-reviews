@@ -5,24 +5,23 @@ import urllib.parse
 app = FastAPI()
 
 # --- ⚙️ CONFIGURATION: THE DATABASE ---
-# Just add your 3 targets here.
 CLIENTS = {
-    "Unico": {
+    "unico": {
         "name_en": "Unico Cafe",
-        "name_ar": "اونيكو كافية",
-        "phone": "966580996680", # Your phone for the demo
+        "name_ar": "اونيكو كافيه",
+        "phone": "966580996680", # ⚠️ CHECK: Is this YOUR number or THEIRS?
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs"
     },
-    "effect_coffee": {
+    "effect": {
         "name_en": "Effect Coffee",
-        "name_ar": " ايفيكت كوفي",
-        "phone": "966502443461", # Your phone
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28" # Put their link here
+        "name_ar": "ايفيكت كوفي",
+        "phone": "966502443461", # ⚠️ CHECK: Is this YOUR number or THEIRS?
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28"
     },
-    "la-gioia": {
-        "name_en": "la gioia",
+    "lagioia": {
+        "name_en": "La Gioia",
         "name_ar": "مطعم لاجويا",
-        "phone": "966539979957", # Your phone
+        "phone": "966539979957", # ⚠️ CHECK: Is this YOUR number or THEIRS?
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJiUENOXjpST4R07Il0f6NCPI" 
     }
 }
@@ -35,7 +34,6 @@ HTML_BASE = """
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rate Us</title>
 <style>
-/* --- SAME STYLES AS BEFORE (No changes needed) --- */
 body { font-family: system-ui, -apple-system, sans-serif; background: #f4f6f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; user-select: none; -webkit-user-select: none; }
 .card { background: white; padding: 35px 28px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.08); max-width: 400px; width: 85%; text-align: center; }
 h1 { font-size: 22px; margin-bottom: 8px; color: #1a1a1a; }
@@ -75,10 +73,8 @@ updateText();
 </html>
 """
 
-# --- 1. DYNAMIC ROUTING (The Magic Part) ---
 @app.get("/{client_id}", response_class=HTMLResponse)
 def rate_page(client_id: str):
-    # Check if this restaurant exists in our list
     client = CLIENTS.get(client_id)
     if not client:
         return HTMLResponse("<h1>Error: Restaurant Not Found</h1>", status_code=404)
@@ -118,9 +114,7 @@ def rate_page(client_id: str):
 def process_rating(client_id: str = Form(...), stars: int = Form(...)):
     client = CLIENTS.get(client_id)
     if stars >= 4:
-        # Redirect to THEIR specific Google Map
         return RedirectResponse(client['google_link'], status_code=303)
-    # Redirect to feedback page (keeping the client_id)
     return RedirectResponse(f"/{client_id}/feedback", status_code=303)
 
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
@@ -139,16 +133,11 @@ def feedback_page(client_id: str):
 @app.post("/submit")
 def submit_feedback(client_id: str = Form(...), complaint: str = Form(...)):
     client = CLIENTS.get(client_id)
-    
     formatted_text = f"🚨 *{client['name_en']} Feedback*\n\n{complaint}"
     encoded_text = urllib.parse.quote(formatted_text)
-    
-    # Send to the specific phone number for this client
     whatsapp_link = f"https://wa.me/{client['phone']}?text={encoded_text}"
-    
     return RedirectResponse(whatsapp_link, status_code=303)
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
