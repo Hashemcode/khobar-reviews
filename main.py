@@ -96,7 +96,7 @@ async def rate_page(client_id: str, request: Request):
         return HTMLResponse("<h1>Error: Restaurant Not Found</h1>", status_code=404)
 
     content = f"""
-    <h1 data-en="How was {client['name_en']}?" data-ar="كيف كانت تجربتك في {client['name_ar']}?"></h1>
+    <h1 data-en="How was {client['name_en']}?" data-ar="كيف كانت تجربتك في {client['name_ar']}؟"></h1>
     <p data-en="Tap to rate" data-ar="اضغط للتقييم"></p>
 
     <form action="/process" method="post" id="ratingForm">
@@ -164,4 +164,5 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(default=""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
