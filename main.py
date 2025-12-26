@@ -30,6 +30,12 @@ CLIENTS = {
         "name_ar": "مطعم لاجويا",
         "phone": "966539979957", 
         "google_link": "https://search.google.com/local/writereview?placeid=ChIJiUENOXjpST4R07Il0f6NCPI" 
+    },
+    "thirdplace": {
+        "name_en": "The 3rd Place",
+        "name_ar": "ذا ثيرد بليس",
+        "phone": "966550461742", # ⚠️ ضع رقم جوالهم هنا إذا كان لديك، أو رقمك مؤقتاً
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ" # ل وضعه هنا
     }
 }
 
@@ -164,5 +170,6 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(default=""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
