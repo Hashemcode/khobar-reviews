@@ -6,6 +6,13 @@ app = FastAPI()
 
 # --- ⚙️ CONFIGURATION: THE DATABASE ---
 CLIENTS = {
+    # --- أضف هذا إلى قائمة CLIENTS في ملف main.py ---
+    "masra": {
+        "name_en": "Masra Tea",
+        "name_ar": "شاي مسرى",
+        "phone": "966553144059", 
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJJd-3LBvpST4RWO6uzJyTpVQ"
+    },
     "unico": {
         "name_en": "Unico Cafe",
         "name_ar": "اونيكو كافيه",
@@ -157,3 +164,4 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(default=""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
