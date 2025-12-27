@@ -6,7 +6,6 @@ app = FastAPI()
 
 # --- ⚙️ CONFIGURATION: THE DATABASE ---
 CLIENTS = {
-    # --- أضف هذا إلى قائمة CLIENTS في ملف main.py ---
     "masra": {
         "name_en": "Masra Tea",
         "name_ar": "شاي مسرى",
@@ -34,8 +33,8 @@ CLIENTS = {
     "thirdplace": {
         "name_en": "The 3rd Place",
         "name_ar": "ذا ثيرد بليس",
-        "phone": "966550461742", # ⚠️ ضع رقم جوالهم هنا إذا كان لديك، أو رقمك مؤقتاً
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ" # ل وضعه هنا
+        "phone": "966550461742", 
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ"
     }
 }
 
@@ -86,17 +85,19 @@ updateText();
 </html>
 """
 
-# --- 1. DYNAMIC ROUTING WITH LOGGING ---
-@app.get("/{client_id}", response_class=HTMLResponse)
+# --- 1. DYNAMIC ROUTING WITH LOGGING (FIXED FOR UPTIME ROBOT) ---
+@app.api_route("/{client_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def rate_page(client_id: str, request: Request):
     # --- LOGGING START ---
-    # This prints to the Render System Log
     user_agent = request.headers.get('user-agent', 'Unknown')
     ip = request.client.host if request.client else "Unknown"
-    print(f"🔔 NEW SCAN: {client_id.upper()} | IP: {ip} | Device: {user_agent}")
+    
+    # Don't log the bot pings to keep logs clean
+    if "UptimeRobot" not in user_agent:
+        print(f"🔔 NEW SCAN: {client_id.upper()} | IP: {ip} | Device: {user_agent}")
     # --- LOGGING END ---
 
-    # Check if this restaurant exists in our list
+    # Check if this restaurant exists
     client = CLIENTS.get(client_id)
     if not client:
         return HTMLResponse("<h1>Error: Restaurant Not Found</h1>", status_code=404)
@@ -138,7 +139,7 @@ def process_rating(client_id: str = Form(...), stars: int = Form(...)):
     if stars >= 4:
         # Redirect to THEIR specific Google Map
         return RedirectResponse(client['google_link'], status_code=303)
-    # Redirect to feedback page (keeping the client_id)
+    # Redirect to feedback page
     return RedirectResponse(f"/{client_id}/feedback", status_code=303)
 
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
@@ -154,7 +155,6 @@ def feedback_page(client_id: str):
     """
     return HTMLResponse(HTML_BASE.replace("{content}", content))
 
-# --- 🔥 FIX IS HERE: Made complaint optional with default="" ---
 @app.post("/submit")
 def submit_feedback(client_id: str = Form(...), complaint: str = Form(default="")):
     client = CLIENTS.get(client_id)
@@ -170,6 +170,3 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(default=""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-
