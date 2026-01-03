@@ -1,171 +1,219 @@
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 import urllib.parse
 
 app = FastAPI()
 
 # --- ⚙️ CONFIGURATION: THE DATABASE ---
+# Add "prize": "Description" to any client you want to offer a reward.
+# If "prize": None, it behaves normally (Direct Google Link).
+
 CLIENTS = {
     "masra": {
         "name_en": "Masra Tea",
         "name_ar": "شاي مسرى",
-        "phone": "966553144059", 
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJJd-3LBvpST4RWO6uzJyTpVQ"
+        "phone": "966553144059",
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJJd-3LBvpST4RWO6uzJyTpVQ",
+        "prize": None  # Normal Mode
     },
     "unico": {
         "name_en": "Unico Cafe",
         "name_ar": "اونيكو كافيه",
-        "phone": "966580996680", 
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs"
+        "phone": "966580996680",
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs",
+        "prize": None  # Normal Mode
     },
     "effect": {
         "name_en": "Effect Coffee",
         "name_ar": "ايفيكت كوفي",
-        "phone": "966502443461", 
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28"
-    },
-    "lagioia": {
-        "name_en": "La Gioia",
-        "name_ar": "مطعم لاجويا",
-        "phone": "966539979957", 
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJiUENOXjpST4R07Il0f6NCPI" 
+        "phone": "966502443461",
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28",
+        "prize": None
     },
     "thirdplace": {
         "name_en": "The 3rd Place",
         "name_ar": "ذا ثيرد بليس",
-        "phone": "966550461742", 
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ"
+        "phone": "966550461742",
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ",
+        "prize": None
+    },
+    "owl": {
+        "name_en": "Owl Bakehouse",
+        "name_ar": "آول بيك هاوس",
+        "phone": "966500000000", # ⚠️ Update Phone
+        "google_link": "https://goo.gl/maps/PLACEHOLDER", # ⚠️ Update Link
+        "prize": "Free Cookie 🍪"  # ✅ PRIZE MODE ACTIVE
     }
 }
 
+# --- HTML TEMPLATES ---
 HTML_BASE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rate Us</title>
+<title>Feedback</title>
 <style>
-body { font-family: system-ui, -apple-system, sans-serif; background: #f4f6f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; user-select: none; -webkit-user-select: none; }
-.card { background: white; padding: 35px 28px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.08); max-width: 400px; width: 85%; text-align: center; }
-h1 { font-size: 22px; margin-bottom: 8px; color: #1a1a1a; }
-p { color: #666; margin-bottom: 25px; font-size: 16px; }
-.lang-toggle { position: absolute; top: 25px; right: 25px; cursor: pointer; font-weight: 700; font-size: 14px; color: #555; background: #fff; padding: 8px 16px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-.stars { display: flex; justify-content: center; gap: 8px; direction: ltr; }
-.star { font-size: 46px; color: #e0e0e0; cursor: pointer; transition: color 0.15s ease, transform 0.1s; -webkit-tap-highlight-color: transparent; }
-.star.gold { color: #FFD700; transform: scale(1.1); }
-textarea { width: 100%; padding: 16px; border-radius: 16px; border: 1px solid #eee; background: #f9f9f9; resize: none; font-size: 16px; box-sizing: border-box; outline: none; font-family: inherit; }
-textarea:focus { border-color: #000; background: #fff; }
-button { margin-top: 18px; width: 100%; padding: 16px; border: none; border-radius: 16px; background: #25D366; color: white; font-size: 17px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3); }
+body {{ font-family: system-ui, -apple-system, sans-serif; background: #f4f6f8; margin: 0; display: flex; justify-content: center; min-height: 100vh; }}
+.card {{ background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 90%; max-width: 400px; text-align: center; margin-top: 5vh; height: fit-content; }}
+h1 {{ color: #333; font-size: 22px; }}
+p {{ color: #666; }}
+.stars {{ display: flex; justify-content: center; gap: 5px; direction: ltr; margin: 20px 0; }}
+.star {{ font-size: 45px; color: #ddd; cursor: pointer; transition: 0.2s; }}
+.star.gold {{ color: #ffc107; transform: scale(1.1); }}
+textarea {{ width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 15px; font-family: inherit; box-sizing: border-box; }}
+button {{ background: #25D366; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }}
+.prize-box {{ border: 2px dashed #ff9800; background: #fff8e1; padding: 20px; border-radius: 15px; margin-top: 20px; }}
+.redeemed {{ opacity: 0.6; filter: grayscale(1); border: 2px solid #ccc; background: #eee; }}
+.hidden {{ display: none; }}
 </style>
 </head>
 <body>
-<div class="lang-toggle" onclick="toggleLang()">AR / EN</div>
-<div class="card" id="app" data-lang="en">
+<div class="card">
 {content}
 </div>
-<script>
-function toggleLang() {
-    const app = document.getElementById('app');
-    const newLang = app.getAttribute('data-lang') === 'en' ? 'ar' : 'en';
-    app.setAttribute('data-lang', newLang);
-    document.documentElement.lang = newLang;
-    document.dir = newLang === 'en' ? 'ltr' : 'rtl';
-    updateText();
-}
-function updateText() {
-    const lang = document.getElementById('app').getAttribute('data-lang');
-    document.querySelectorAll('[data-en]').forEach(el => {
-        el.innerText = el.getAttribute(lang === 'en' ? 'data-en' : 'data-ar');
-    });
-}
-updateText();
-</script>
 </body>
 </html>
 """
 
-# --- 1. DYNAMIC ROUTING WITH LOGGING (FIXED FOR UPTIME ROBOT) ---
+# --- ROUTES ---
+
+@app.get("/", response_class=HTMLResponse)
+def home_page():
+    return HTMLResponse("<h1>System Online ✅</h1><p>Ready to scan.</p>")
+
+# 1. THE RATING PAGE
 @app.api_route("/{client_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def rate_page(client_id: str, request: Request):
-    # --- LOGGING START ---
-    user_agent = request.headers.get('user-agent', 'Unknown')
-    ip = request.client.host if request.client else "Unknown"
-    
-    # Don't log the bot pings to keep logs clean
-    if "UptimeRobot" not in user_agent:
-        print(f"🔔 NEW SCAN: {client_id.upper()} | IP: {ip} | Device: {user_agent}")
-    # --- LOGGING END ---
-
-    # Check if this restaurant exists
     client = CLIENTS.get(client_id)
     if not client:
-        return HTMLResponse("<h1>Error: Restaurant Not Found</h1>", status_code=404)
+        return HTMLResponse("<h1>Error: Client Not Found</h1>", status_code=404)
 
     content = f"""
-    <h1 data-en="How was {client['name_en']}?" data-ar="كيف كانت تجربتك في {client['name_ar']}؟"></h1>
-    <p data-en="Tap to rate" data-ar="اضغط للتقييم"></p>
-
+    <h1>How was {client['name_en']}?</h1>
+    <p>Tap a star to rate us</p>
     <form action="/process" method="post" id="ratingForm">
         <input type="hidden" name="client_id" value="{client_id}">
         <input type="hidden" name="stars" id="starsInput">
-        <div class="stars" id="starContainer">
-            <span class="star" id="s1" onclick="submitRate(1)" onmouseenter="hoverStar(1)">★</span>
-            <span class="star" id="s2" onclick="submitRate(2)" onmouseenter="hoverStar(2)">★</span>
-            <span class="star" id="s3" onclick="submitRate(3)" onmouseenter="hoverStar(3)">★</span>
-            <span class="star" id="s4" onclick="submitRate(4)" onmouseenter="hoverStar(4)">★</span>
-            <span class="star" id="s5" onclick="submitRate(5)" onmouseenter="hoverStar(5)">★</span>
+        <div class="stars">
+            <span class="star" onclick="rate(1)">★</span>
+            <span class="star" onclick="rate(2)">★</span>
+            <span class="star" onclick="rate(3)">★</span>
+            <span class="star" onclick="rate(4)">★</span>
+            <span class="star" onclick="rate(5)">★</span>
         </div>
     </form>
-
     <script>
-    const container = document.getElementById('starContainer');
-    container.addEventListener('mouseleave', () => {{ resetStars(); }});
-    function hoverStar(v) {{ fillStars(v); }}
-    function resetStars() {{ for (let i=1; i<=5; i++) document.getElementById('s'+i).classList.remove('gold'); }}
-    function fillStars(v) {{ resetStars(); for (let i=1; i<=v; i++) document.getElementById('s'+i).classList.add('gold'); }}
-    function submitRate(v) {{
-        fillStars(v);
-        document.getElementById('starsInput').value = v;
-        setTimeout(() => {{ document.getElementById('ratingForm').submit(); }}, 300);
+    function rate(n) {{
+        document.querySelectorAll('.star').forEach((s, i) => {{
+            s.classList.toggle('gold', i < n);
+        }});
+        document.getElementById('starsInput').value = n;
+        setTimeout(() => document.getElementById('ratingForm').submit(), 300);
     }}
     </script>
     """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
+    return HTMLResponse(HTML_BASE.format(content=content))
 
+# 2. LOGIC PROCESSOR
 @app.post("/process")
 def process_rating(client_id: str = Form(...), stars: int = Form(...)):
     client = CLIENTS.get(client_id)
+    
+    # CASE A: GOOD RATING (4-5 Stars)
     if stars >= 4:
-        # Redirect to THEIR specific Google Map
-        return RedirectResponse(client['google_link'], status_code=303)
-    # Redirect to feedback page
+        # Check if they have a PRIZE system active
+        if client.get("prize"):
+            return RedirectResponse(f"/{client_id}/prize", status_code=303)
+        else:
+            # No prize, just send to Google Maps
+            return RedirectResponse(client['google_link'], status_code=303)
+            
+    # CASE B: BAD RATING (1-3 Stars) -> FEEDBACK
     return RedirectResponse(f"/{client_id}/feedback", status_code=303)
 
+# 3. WINNER / PRIZE PAGE (ANTI-FRAUD)
+@app.get("/{client_id}/prize", response_class=HTMLResponse)
+def prize_page(client_id: str):
+    client = CLIENTS.get(client_id)
+    
+    prize_name = client.get("prize", "Surprise Gift")
+    
+    content = f"""
+    <div id="activeTicket">
+        <h1 style="color: #ff9800;">🎉 CONGRATULATIONS!</h1>
+        <p>You rated us 5 stars!</p>
+        
+        <div class="prize-box">
+            <h2>YOU WON:</h2>
+            <h1 style="margin: 10px 0; font-size: 30px;">{prize_name}</h1>
+            <p style="font-size: 12px; color: #888;">Valid on your NEXT visit with any purchase.</p>
+        </div>
+
+        <br>
+        <p><strong>Step 1:</strong> Save this screen.</p>
+        <a href="{client['google_link']}" target="_blank" style="display:block; text-decoration:none; margin-bottom: 10px;">
+            <button style="background: #4285F4;">Review on Google Maps ➜</button>
+        </a>
+        
+        <p><strong>Step 2:</strong> When you return, ask staff to tap below:</p>
+        <button onclick="redeem()" style="background: #333;">🔘 Staff Redeem Button</button>
+    </div>
+
+    <div id="redeemedTicket" class="hidden prize-box redeemed">
+        <h1>❌ REDEEMED</h1>
+        <p>This coupon has already been used.</p>
+        <p id="timeDate"></p>
+    </div>
+
+    <script>
+        // Unique Key for this specific restaurant
+        const storageKey = 'redeemed_{client_id}';
+
+        // 1. Check if already used
+        if (localStorage.getItem(storageKey) === 'true') {{
+            showRedeemed();
+        }}
+
+        function redeem() {{
+            if (confirm('STAFF CHECK: Are you sure you want to redeem this prize? It will disappear forever.')) {{
+                localStorage.setItem(storageKey, 'true');
+                localStorage.setItem(storageKey + '_time', new Date().toLocaleString());
+                showRedeemed();
+            }}
+        }}
+
+        function showRedeemed() {{
+            document.getElementById('activeTicket').classList.add('hidden');
+            document.getElementById('redeemedTicket').classList.remove('hidden');
+            document.getElementById('timeDate').innerText = localStorage.getItem(storageKey + '_time');
+        }}
+    </script>
+    """
+    return HTMLResponse(HTML_BASE.format(content=content))
+
+# 4. FEEDBACK PAGE (BAD RATING)
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
 def feedback_page(client_id: str):
     content = f"""
-    <h1 data-en="We are sorry 😞" data-ar="نأسف لسماع ذلك 😞"></h1>
-    <p data-en="Tell the manager directly" data-ar="أخبر المدير مباشرة"></p>
+    <h1>We are sorry 😔</h1>
+    <p>Please tell the manager directly. This message goes to WhatsApp, not public.</p>
     <form action="/submit" method="post">
         <input type="hidden" name="client_id" value="{client_id}">
-        <textarea name="complaint" rows="5" placeholder="..."></textarea>
-        <button data-en="Continue to Chat ➜" data-ar="المتابعة للمحادثة ➜"></button>
+        <textarea name="complaint" rows="4" placeholder="What went wrong?"></textarea>
+        <button>Send to Manager ➜</button>
     </form>
     """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
+    return HTMLResponse(HTML_BASE.format(content=content))
 
+# 5. WHATSAPP SENDER
 @app.post("/submit")
 def submit_feedback(client_id: str = Form(...), complaint: str = Form(default="")):
     client = CLIENTS.get(client_id)
-    
-    formatted_text = f"🚨 *{client['name_en']} Feedback*\n\n{complaint}"
-    encoded_text = urllib.parse.quote(formatted_text)
-    
-    # Send to the specific phone number for this client
-    whatsapp_link = f"https://wa.me/{client['phone']}?text={encoded_text}"
-    
-    return RedirectResponse(whatsapp_link, status_code=303)
+    text = f"🚨 *New Feedback for {client['name_en']}*\n\n{complaint}"
+    wa_link = f"https://wa.me/{client['phone']}?text={urllib.parse.quote(text)}"
+    return RedirectResponse(wa_link, status_code=303)
 
 if __name__ == "__main__":
     import uvicorn
