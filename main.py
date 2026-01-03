@@ -41,7 +41,7 @@ CLIENTS = {
         "name_en": "Owl Bakehouse",
         "name_ar": "آول بيك هاوس",
         "phone": "966500000000", # ⚠️ Update Phone
-        "google_link": "https://goo.gl/maps/PLACEHOLDER", # ⚠️ Update Link
+       "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs"", # ⚠️ Update Link
         "prize": "Free Cookie 🍪"  # ✅ PRIZE MODE ACTIVE
     }
 }
@@ -218,3 +218,4 @@ def submit_feedback(client_id: str = Form(...), complaint: str = Form(default=""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
