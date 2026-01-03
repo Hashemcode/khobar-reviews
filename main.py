@@ -1,365 +1,281 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-import urllib.parse
-import csv
+import sqlite3
+import uuid
 import datetime
-import os
+import re
 
 app = FastAPI()
+DB_NAME = "elite.db"
 
-# --- ⚙️ CLIENT CONFIGURATION ---
-CLIENTS = {
-    "masra": {
-        "name_en": "Masra Tea",
-        "name_ar": "شاي مسرى",
-        "phone": "966553144059",
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJJd-3LBvpST4RWO6uzJyTpVQ",
-        "prize": None
-    },
-    "unico": {
-        "name_en": "Unico Cafe",
-        "name_ar": "اونيكو كافيه",
-        "phone": "966580996680",
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJ1fUVjUrpST4RJOfdZ6qTqTs",
-        "prize": None
-    },
-    "effect": {
-        "name_en": "Effect Coffee",
-        "name_ar": "ايفيكت كوفي",
-        "phone": "966502443461",
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJTSi3q9nnST4RsFE7lnuMp28",
-        "prize": None
-    },
-    "thirdplace": {
-        "name_en": "The 3rd Place",
-        "name_ar": "ذا ثيرد بليس",
-        "phone": "966550461742",
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ",
-        "prize": None
-    },
-    "owl": {
-        "name_en": "Owl Bakehouse",
-        "name_ar": "آول بيك هاوس",
-        "phone": "966500000000",  # ⚠️ UPDATE THIS REAL NUMBER
-        "google_link": "https://goo.gl/maps/PLACEHOLDER", # ⚠️ UPDATE THIS REAL LINK
-        "prize": "Free Cookie 🍪"  # ✅ PRIZE ACTIVE
-    }
-}
-
-# --- 💾 DATABASE MANAGER ---
-CSV_FILE = "leads.csv"
-
-def save_lead(client_id, phone):
-    file_exists = os.path.isfile(CSV_FILE)
-    with open(CSV_FILE, "a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        if not file_exists:
-            writer.writerow(["Client", "Phone", "Date", "Time"])
-        
-        now = datetime.datetime.now()
-        writer.writerow([client_id, phone, now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")])
-
-# --- 🎨 ELITE UI TEMPLATES ---
-# Note: We use .replace("{content}", content) to avoid CSS conflicts
+# --- 🎨 CSS STYLING (Looks like an App) ---
 HTML_BASE = """
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-<title>Rate Experience</title>
-<style>
-    /* MODERN RESET */
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-        background-color: #f4f7f6; 
-        margin: 0; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center; 
-        min-height: 100vh;
-        color: #333;
-    }
-
-    /* THE CARD */
-    .card { 
-        background: white; 
-        width: 90%; 
-        max-width: 400px; 
-        border-radius: 24px; 
-        padding: 40px 30px; 
-        box-shadow: 0 20px 40px rgba(0,0,0,0.08); 
-        text-align: center; 
-    }
-
-    /* TYPOGRAPHY */
-    h1 { margin: 0 0 10px; font-size: 24px; font-weight: 700; color: #111; letter-spacing: -0.5px; }
-    p { margin: 0 0 25px; color: #666; font-size: 16px; line-height: 1.5; }
-
-    /* STARS */
-    .stars { display: flex; justify-content: center; gap: 8px; direction: ltr; margin-bottom: 30px; }
-    .star { font-size: 48px; color: #e0e0e0; cursor: pointer; transition: transform 0.1s, color 0.2s; }
-    .star.gold { color: #FFD700; transform: scale(1.1); }
-    .star:active { transform: scale(0.9); }
-
-    /* INPUTS */
-    textarea, input[type="tel"] { 
-        width: 100%; 
-        padding: 16px; 
-        border: 2px solid #eee; 
-        border-radius: 16px; 
-        background: #fafafa; 
-        font-size: 16px; 
-        font-family: inherit; 
-        outline: none; 
-        transition: border-color 0.2s;
-    }
-    textarea:focus, input:focus { border-color: #25D366; background: #fff; }
-
-    /* BUTTONS */
-    .btn { 
-        display: block; 
-        width: 100%; 
-        padding: 18px; 
-        border: none; 
-        border-radius: 16px; 
-        font-size: 17px; 
-        font-weight: 700; 
-        cursor: pointer; 
-        margin-top: 15px; 
-        text-decoration: none;
-    }
-    .btn:active { transform: scale(0.98); }
-    
-    .btn-primary { background: #25D366; color: white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3); }
-    .btn-google { background: #4285F4; color: white; box-shadow: 0 4px 15px rgba(66, 133, 244, 0.3); }
-    .btn-staff { background: #333; color: white; margin-top: 30px; font-size: 14px; padding: 12px; opacity: 0.8; }
-    .btn-reset { background: transparent; color: #aaa; font-size: 12px; margin-top: 20px; border: 1px solid #eee; padding: 8px; }
-
-    /* PRIZE TICKET STYLES */
-    .ticket-container {
-        border: 3px dashed #FF9F43;
-        background-color: #FFFDF2;
-        border-radius: 18px;
-        padding: 25px;
-        margin-bottom: 25px;
-        position: relative;
-    }
-    .prize-title { color: #FF9F43; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; margin-bottom: 5px; }
-    .prize-item { color: #333; font-size: 28px; font-weight: 900; margin: 10px 0; }
-    .redeemed { opacity: 0.5; filter: grayscale(100%); background: #eee; border-color: #ccc; }
-    .hidden { display: none; }
-    
-    /* DASHBOARD TABLE */
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; text-align: left; }
-    th { border-bottom: 2px solid #ddd; padding: 10px; color: #333; }
-    td { border-bottom: 1px solid #eee; padding: 10px; color: #666; }
-</style>
+    <title>Customer Club</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, system-ui, sans-serif; background:#f4f7f6; margin:0; display:flex; justify-content:center; min-height:100vh; padding: 20px; }
+        .card { background:white; width:100%; max-width:400px; padding:30px; border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,0.05); text-align:center; height: fit-content; align-self: center; }
+        h1 { margin:0 0 10px; font-size:22px; color:#333; }
+        p { color:#666; line-height:1.5; margin-bottom:20px; }
+        .btn { display:block; width:100%; padding:16px; border:none; border-radius:16px; font-size:16px; font-weight:bold; cursor:pointer; margin-top:10px; text-decoration:none; }
+        .btn-primary { background:#25D366; color:white; }
+        .btn-google { background:#4285F4; color:white; }
+        .btn-staff { background:#333; color:white; opacity:0.8; font-size:14px; }
+        input, textarea { width:100%; padding:15px; border:2px solid #eee; border-radius:12px; font-size:16px; margin-bottom:15px; outline:none; }
+        input:focus, textarea:focus { border-color:#25D366; }
+        .stars { font-size:45px; color:#ddd; margin:20px 0; cursor:pointer; }
+        .gold { color:#FFD700; }
+        .coupon-box { border:2px dashed #FF9F43; background:#FFFDF2; padding:20px; border-radius:15px; margin-bottom:20px; }
+    </style>
 </head>
 <body>
-    <div class="card">
-        {content}
-    </div>
+<div class="card">
+{content}
+</div>
 </body>
 </html>
 """
 
-# --- ROUTES ---
+# --- 🗄️ DATABASE ENGINE ---
+
+def db():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with db() as c:
+        # 1. CLIENTS (Restaurants)
+        c.execute("""CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY,
+            slug TEXT UNIQUE,
+            name TEXT,
+            google_link TEXT,
+            prize TEXT
+        )""")
+        # 2. CUSTOMERS (Phone Numbers)
+        c.execute("""CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY,
+            phone TEXT,
+            client_id INTEGER,
+            UNIQUE(phone, client_id)
+        )""")
+        # 3. VISITS (Ratings)
+        c.execute("""CREATE TABLE IF NOT EXISTS visits (
+            id INTEGER PRIMARY KEY,
+            customer_id INTEGER,
+            rating INTEGER,
+            created_at TEXT
+        )""")
+        # 4. COUPONS (The Rewards)
+        c.execute("""CREATE TABLE IF NOT EXISTS coupons (
+            id TEXT PRIMARY KEY,
+            customer_id INTEGER,
+            reward TEXT,
+            expires_at TEXT,
+            redeemed_at TEXT
+        )""")
+        # 5. FEEDBACK (Bad Reviews)
+        c.execute("""CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY,
+            client_id INTEGER,
+            customer_id INTEGER,
+            message TEXT,
+            created_at TEXT
+        )""")
+
+# --- 🛠️ HELPER FUNCTIONS ---
+
+def normalize_phone(phone: str) -> str:
+    # Remove non-digits
+    p = re.sub(r"\D", "", phone)
+    return p
+
+def get_or_create_customer(phone, client_id):
+    with db() as c:
+        row = c.execute("SELECT id FROM customers WHERE phone=? AND client_id=?", (phone, client_id)).fetchone()
+        if row:
+            return row["id"]
+        c.execute("INSERT INTO customers (phone, client_id) VALUES (?, ?)", (phone, client_id))
+        return c.lastrowid
+
+def issue_coupon(customer_id, reward):
+    cid = str(uuid.uuid4())
+    # Coupon valid for 14 days
+    expires = (datetime.datetime.utcnow() + datetime.timedelta(days=14)).isoformat()
+    with db() as c:
+        c.execute("INSERT INTO coupons (id, customer_id, reward, expires_at) VALUES (?,?,?,?)", 
+                  (cid, customer_id, reward, expires))
+    return cid
+
+# --- 🌐 ROUTES ---
+
+@app.on_event("startup")
+def startup():
+    init_db()
+    # ✨ AUTO-BOOTSTRAP: Add your clients here so they exist in DB
+    with db() as c:
+        # Example 1: Owl
+        c.execute("""INSERT OR IGNORE INTO clients (slug, name, google_link, prize) 
+            VALUES ('owl', 'Owl Bakehouse', 'https://goo.gl/maps/YOUR_REAL_LINK_HERE', 'Free Cookie 🍪')""")
+        # Example 2: Unico
+        c.execute("""INSERT OR IGNORE INTO clients (slug, name, google_link, prize) 
+            VALUES ('unico', 'Unico Cafe', 'https://goo.gl/maps/YOUR_REAL_LINK_HERE', 'Free Coffee ☕')""")
 
 @app.get("/", response_class=HTMLResponse)
-def home_page():
-    return HTMLResponse(HTML_BASE.replace("{content}", "<h1>System Online ✅</h1><p>Ready.</p>"))
+def home():
+    return HTMLResponse(HTML_BASE.format(content="<h1>System Online 🟢</h1><p>Ready for customers.</p>"))
 
-# 1. RATING INTERFACE
-@app.api_route("/{client_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
-async def rate_page(client_id: str, request: Request):
-    client = CLIENTS.get(client_id)
-    if not client:
-        return HTMLResponse("<h1>Error: Client Not Found</h1>", status_code=404)
+# 1. RATING PAGE
+@app.get("/{slug}", response_class=HTMLResponse)
+def rate_page(slug: str):
+    with db() as c:
+        client = c.execute("SELECT * FROM clients WHERE slug=?", (slug,)).fetchone()
+    if not client: return HTMLResponse("Client not found", 404)
 
-    content = f"""
-    <h1>{client['name_en']}</h1>
-    <p>How was your experience today?</p>
-    <form action="/process" method="post" id="ratingForm">
-        <input type="hidden" name="client_id" value="{client_id}">
-        <input type="hidden" name="stars" id="starsInput">
-        <div class="stars">
-            <span class="star" id="s1" onclick="rate(1)">★</span>
-            <span class="star" id="s2" onclick="rate(2)">★</span>
-            <span class="star" id="s3" onclick="rate(3)">★</span>
-            <span class="star" id="s4" onclick="rate(4)">★</span>
-            <span class="star" id="s5" onclick="rate(5)">★</span>
-        </div>
-    </form>
-    <script>
-    function rate(n) {{
-        for(let i=1; i<=5; i++) {{
-            let star = document.getElementById('s'+i);
-            if(i <= n) star.classList.add('gold');
-            else star.classList.remove('gold');
-        }}
-        document.getElementById('starsInput').value = n;
-        setTimeout(() => {{ document.getElementById('ratingForm').submit(); }}, 350); 
-    }}
-    </script>
-    """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
+    return HTMLResponse(HTML_BASE.format(content=f"""
+        <h1>{client['name']}</h1>
+        <p>How was your experience?</p>
+        <form action="/rate" method="post" id="rForm">
+            <input type="hidden" name="client_slug" value="{slug}">
+            <input type="hidden" name="stars" id="stars">
+            <div class="stars">
+                <span onclick="rate(1)">★</span>
+                <span onclick="rate(2)">★</span>
+                <span onclick="rate(3)">★</span>
+                <span onclick="rate(4)">★</span>
+                <span onclick="rate(5)">★</span>
+            </div>
+        </form>
+        <script>
+            function rate(n) {{
+                document.querySelectorAll('span').forEach((s,i) => s.classList.toggle('gold', i<n));
+                document.getElementById('stars').value = n;
+                setTimeout(() => document.getElementById('rForm').submit(), 300);
+            }}
+        </script>
+    """))
 
-# 2. LOGIC ROUTER (THE GATE)
-@app.post("/process")
-def process_rating(client_id: str = Form(...), stars: int = Form(...)):
-    client = CLIENTS.get(client_id)
-    
+# 2. PROCESS RATING (Logic Split)
+@app.post("/rate")
+def process_rate(client_slug: str = Form(...), stars: int = Form(...)):
     if stars >= 4:
-        # IF PRIZE EXISTS -> GO TO CLAIM FORM (CAPTURE DATA)
-        if client.get("prize"):
-            return RedirectResponse(f"/{client_id}/claim", status_code=303)
-        else:
-            return RedirectResponse(client['google_link'], status_code=303)
-            
-    return RedirectResponse(f"/{client_id}/feedback", status_code=303)
+        # Good Rating -> Go to Phone Capture
+        return RedirectResponse(f"/claim/{client_slug}/{stars}", 303)
+    else:
+        # Bad Rating -> Go to Feedback
+        return RedirectResponse(f"/feedback/{client_slug}", 303)
 
-# 3. CLAIM PAGE (THE TRAP)
-@app.get("/{client_id}/claim", response_class=HTMLResponse)
-def claim_page(client_id: str):
-    client = CLIENTS.get(client_id)
-    prize = client['prize']
+# 3. CLAIM PAGE (Capture Phone)
+@app.get("/claim/{slug}/{stars}", response_class=HTMLResponse)
+def claim_page(slug: str, stars: int):
+    with db() as c:
+        client = c.execute("SELECT * FROM clients WHERE slug=?", (slug,)).fetchone()
     
-    content = f"""
-    <div style="font-size: 50px; margin-bottom: 10px;">🎁</div>
-    <h1>You Won!</h1>
-    <p>You unlocked a special reward.</p>
-    
-    <div class="ticket-container">
-        <div class="prize-title">REWARD</div>
-        <div class="prize-item">{prize}</div>
-    </div>
+    return HTMLResponse(HTML_BASE.format(content=f"""
+        <div style="font-size:50px">🎁</div>
+        <h1>You Won!</h1>
+        <p>Because you rated us {stars} stars, you unlocked: <strong>{client['prize']}</strong></p>
+        <p>Enter your mobile number to save your coupon:</p>
+        <form action="/complete" method="post">
+            <input type="hidden" name="client_slug" value="{slug}">
+            <input type="hidden" name="stars" value="{stars}">
+            <input type="tel" name="phone" placeholder="05xxxxxxxx" required>
+            <button class="btn btn-primary">Unlock Prize 🔓</button>
+        </form>
+    """))
 
-    <p style="font-size:14px; margin-bottom: 10px;">Enter your mobile number to activate coupon:</p>
+# 4. SAVE DATA & ISSUE COUPON
+@app.post("/complete")
+def complete(client_slug: str = Form(...), stars: int = Form(...), phone: str = Form(...)):
+    phone = normalize_phone(phone)
     
-    <form action="/unlock" method="post">
-        <input type="hidden" name="client_id" value="{client_id}">
-        <input type="tel" name="phone" placeholder="05xxxxxxxx" required style="text-align:center; letter-spacing: 1px;">
-        <button class="btn btn-primary">Unlock Prize 🔓</button>
-    </form>
-    """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
-
-# 4. UNLOCK & SAVE DATA
-@app.post("/unlock")
-def unlock_prize(client_id: str = Form(...), phone: str = Form(...)):
-    # 💰 SAVE THE LEAD 💰
-    save_lead(client_id, phone)
-    # Redirect to final ticket
-    return RedirectResponse(f"/{client_id}/prize", status_code=303)
-
-# 5. PRIZE PAGE (THE WINNER TICKET)
-@app.get("/{client_id}/prize", response_class=HTMLResponse)
-def prize_page(client_id: str):
-    client = CLIENTS.get(client_id)
-    prize_name = client.get("prize", "Gift")
+    with db() as c:
+        client = c.execute("SELECT * FROM clients WHERE slug=?", (client_slug,)).fetchone()
     
-    content = f"""
-    <div id="activeTicket">
-        <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
+    # Save Customer & Visit
+    cust_id = get_or_create_customer(phone, client['id'])
+    with db() as c:
+        c.execute("INSERT INTO visits (customer_id, rating, created_at) VALUES (?,?,?)", 
+                  (cust_id, stars, datetime.datetime.utcnow().isoformat()))
+    
+    # Issue Coupon
+    cid = issue_coupon(cust_id, client['prize'])
+    return RedirectResponse(f"/coupon/{cid}", 303)
+
+# 5. COUPON PAGE (With Google Link + Redeem)
+@app.get("/coupon/{cid}", response_class=HTMLResponse)
+def view_coupon(cid: str):
+    with db() as c:
+        # Join tables to get Client info for the Google Link
+        row = c.execute("""
+            SELECT coupons.*, clients.google_link 
+            FROM coupons 
+            JOIN customers ON coupons.customer_id = customers.id 
+            JOIN clients ON customers.client_id = clients.id 
+            WHERE coupons.id=?""", (cid,)).fetchone()
+    
+    if not row: return HTMLResponse("Invalid Coupon")
+
+    if row['redeemed_at']:
+        return HTMLResponse(HTML_BASE.format(content=f"""
+            <h2 style="color:#aaa">❌ Redeemed</h2>
+            <p>Used on: {row['redeemed_at'][:10]}</p>
+        """))
+
+    return HTMLResponse(HTML_BASE.format(content=f"""
+        <div style="font-size:50px">🎉</div>
         <h1>Congratulations!</h1>
-        <p>Your coupon is active.</p>
-        
-        <div class="ticket-container">
-            <div class="prize-title">VALID NEXT VISIT</div>
-            <div class="prize-item">{prize_name}</div>
+        <div class="coupon-box">
+            <h2>{row['reward']}</h2>
+            <small>Valid until: {row['expires_at'][:10]}</small>
         </div>
-
-        <a href="{client['google_link']}" target="_blank" style="text-decoration:none;">
-            <button class="btn btn-google">Step 1: Write Review ➜</button>
+        
+        <p><strong>Step 1:</strong> Support us on Google</p>
+        <a href="{row['google_link']}" target="_blank" style="text-decoration:none">
+            <button class="btn btn-google">Write Review ➜</button>
         </a>
         
-        <button onclick="redeem()" class="btn btn-staff">🔘 Staff Redeem Button</button>
-    </div>
+        <br>
+        <p><strong>Step 2:</strong> Show staff to redeem</p>
+        <form action="/redeem" method="post" onsubmit="return confirm('Staff Only: Redeem now?')">
+            <input type="hidden" name="cid" value="{cid}">
+            <button class="btn btn-staff">🔘 Mark as Used</button>
+        </form>
+    """))
 
-    <div id="redeemedTicket" class="hidden">
-        <div class="ticket-container redeemed">
-            <div class="prize-title">REDEEMED</div>
-            <div class="prize-item">{prize_name}</div>
-        </div>
-        <p>Used on: <span id="timeDate"></span></p>
-        <button onclick="resetTest()" class="btn btn-reset">🔄 Reset Test</button>
-    </div>
+# 6. REDEEM ACTION
+@app.post("/redeem")
+def redeem(cid: str = Form(...)):
+    now = datetime.datetime.utcnow().isoformat()
+    with db() as c:
+        c.execute("UPDATE coupons SET redeemed_at=? WHERE id=?", (now, cid))
+    return RedirectResponse(f"/coupon/{cid}", 303)
 
-    <script>
-        const storageKey = 'redeemed_{client_id}';
-        if (localStorage.getItem(storageKey) === 'true') {{
-            showRedeemed();
-        }}
-        function redeem() {{
-            if (confirm('STAFF: Redeem now?')) {{
-                localStorage.setItem(storageKey, 'true');
-                localStorage.setItem(storageKey + '_time', new Date().toLocaleString());
-                showRedeemed();
-            }}
-        }}
-        function showRedeemed() {{
-            document.getElementById('activeTicket').classList.add('hidden');
-            document.getElementById('redeemedTicket').classList.remove('hidden');
-            document.getElementById('timeDate').innerText = localStorage.getItem(storageKey + '_time');
-        }}
-        function resetTest() {{
-            localStorage.removeItem(storageKey);
-            location.reload();
-        }}
-    </script>
-    """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
+# 7. FEEDBACK PAGE (Bad Rating)
+@app.get("/feedback/{slug}", response_class=HTMLResponse)
+def feedback_page(slug: str):
+    return HTMLResponse(HTML_BASE.format(content=f"""
+        <h1>We're Sorry 😔</h1>
+        <p>Please tell us what went wrong so we can fix it.</p>
+        <form action="/feedback_submit" method="post">
+            <input type="hidden" name="slug" value="{slug}">
+            <textarea name="msg" placeholder="Your feedback..." required></textarea>
+            <button class="btn btn-primary">Send to Manager</button>
+        </form>
+    """))
 
-# 6. FEEDBACK PAGE (BAD RATING)
-@app.get("/{client_id}/feedback", response_class=HTMLResponse)
-def feedback_page(client_id: str):
-    client = CLIENTS.get(client_id)
-    content = f"""
-    <h1>We are sorry 😔</h1>
-    <p>Please tell us how to improve.</p>
-    <form action="/submit" method="post">
-        <input type="hidden" name="client_id" value="{client_id}">
-        <textarea name="complaint" rows="5" placeholder="Your feedback..." required></textarea>
-        <button class="btn btn-primary">Send to Manager ➜</button>
-    </form>
-    """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
-
-# 7. WHATSAPP SENDER
-@app.post("/submit")
-def submit_feedback(client_id: str = Form(...), complaint: str = Form(default="")):
-    client = CLIENTS.get(client_id)
-    text = f"🚨 *Feedback for {client['name_en']}*\n\n{complaint}"
-    wa_link = f"https://wa.me/{client['phone']}?text={urllib.parse.quote(text)}"
-    return RedirectResponse(wa_link, status_code=303)
-
-# 8. 🕵️ SECRET DASHBOARD (View Your Data)
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
-    rows = []
-    if os.path.isfile(CSV_FILE):
-        with open(CSV_FILE, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            rows = list(reader)
-    
-    table_rows = ""
-    for row in rows:
-        table_rows += f"<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>"
-
-    content = f"""
-    <h1>📊 Elite Leads</h1>
-    <p>Total Customers: {len(rows)-1 if rows else 0}</p>
-    <table>
-        <thead><tr><th>Client</th><th>Phone</th><th>Date</th></tr></thead>
-        <tbody>{table_rows}</tbody>
-    </table>
-    <br>
-    <a href="/" class="btn btn-reset">Back Home</a>
-    """
-    return HTMLResponse(HTML_BASE.replace("{content}", content))
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.post("/feedback_submit")
+def save_feedback(slug: str = Form(...), msg: str = Form(...)):
+    # Here you would ideally look up client phone and send WhatsApp
+    # For now, we just save to DB
+    with db() as c:
+        client = c.execute("SELECT id FROM clients WHERE slug=?", (slug,)).fetchone()
+        c.execute("INSERT INTO feedback (client_id, message, created_at) VALUES (?,?,?)", 
+                  (client['id'], msg, datetime.datetime.utcnow().isoformat()))
+        
+    return HTMLResponse(HTML_BASE.format(content="<h1>Thank You</h1><p>Your message has been sent.</p>"))
