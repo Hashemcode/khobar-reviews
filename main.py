@@ -40,17 +40,16 @@ CLIENTS = {
     "owl": {
         "name_en": "Owl Bakehouse",
         "name_ar": "آول بيك هاوس",
-        "phone": "966500000000",  # ⚠️ UPDATE THIS
-        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ", # ⚠️ UPDATE THIS REAL LINK
+        "phone": "966500000000",  # ⚠️ UPDATE THIS REAL NUMBER
+        "google_link": "https://goo.gl/maps/PLACEHOLDER", # ⚠️ UPDATE THIS REAL LINK
         "prize": "Free Cookie 🍪"  # ✅ PRIZE ACTIVE
     }
 }
 
-# --- 💾 DATABASE MANAGER (THE MONEY MAKER) ---
+# --- 💾 DATABASE MANAGER ---
 CSV_FILE = "leads.csv"
 
 def save_lead(client_id, phone):
-    # Create file with header if it doesn't exist
     file_exists = os.path.isfile(CSV_FILE)
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
@@ -61,6 +60,7 @@ def save_lead(client_id, phone):
         writer.writerow([client_id, phone, now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")])
 
 # --- 🎨 ELITE UI TEMPLATES ---
+# Note: We use .replace("{content}", content) to avoid CSS conflicts
 HTML_BASE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -169,7 +169,7 @@ HTML_BASE = """
 
 @app.get("/", response_class=HTMLResponse)
 def home_page():
-    return HTMLResponse(HTML_BASE.format(content="<h1>System Online ✅</h1><p>Ready.</p>"))
+    return HTMLResponse(HTML_BASE.replace("{content}", "<h1>System Online ✅</h1><p>Ready.</p>"))
 
 # 1. RATING INTERFACE
 @app.api_route("/{client_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -204,7 +204,7 @@ async def rate_page(client_id: str, request: Request):
     }}
     </script>
     """
-    return HTMLResponse(HTML_BASE.format(content=content))
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 2. LOGIC ROUTER (THE GATE)
 @app.post("/process")
@@ -244,7 +244,7 @@ def claim_page(client_id: str):
         <button class="btn btn-primary">Unlock Prize 🔓</button>
     </form>
     """
-    return HTMLResponse(HTML_BASE.format(content=content))
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 4. UNLOCK & SAVE DATA
 @app.post("/unlock")
@@ -310,7 +310,7 @@ def prize_page(client_id: str):
         }}
     </script>
     """
-    return HTMLResponse(HTML_BASE.format(content=content))
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 6. FEEDBACK PAGE (BAD RATING)
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
@@ -325,7 +325,7 @@ def feedback_page(client_id: str):
         <button class="btn btn-primary">Send to Manager ➜</button>
     </form>
     """
-    return HTMLResponse(HTML_BASE.format(content=content))
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 7. WHATSAPP SENDER
 @app.post("/submit")
@@ -358,7 +358,7 @@ def dashboard():
     <br>
     <a href="/" class="btn btn-reset">Back Home</a>
     """
-    return HTMLResponse(HTML_BASE.format(content=content))
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 if __name__ == "__main__":
     import uvicorn
