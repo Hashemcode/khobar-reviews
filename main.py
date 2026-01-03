@@ -1,6 +1,9 @@
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 import urllib.parse
+import csv
+import datetime
+import os
 
 app = FastAPI()
 
@@ -38,12 +41,26 @@ CLIENTS = {
         "name_en": "Owl Bakehouse",
         "name_ar": "آول بيك هاوس",
         "phone": "966500000000",  # ⚠️ UPDATE THIS
-        "google_link": "https://goo.gl/maps/PLACEHOLDER", # ⚠️ UPDATE THIS REAL LINK
+        "google_link": "https://search.google.com/local/writereview?placeid=ChIJWX9dW_vpST4RD4-byDMcoVQ", # ⚠️ UPDATE THIS REAL LINK
         "prize": "Free Cookie 🍪"  # ✅ PRIZE ACTIVE
     }
 }
 
-# --- 🎨 SUPERIOR UI TEMPLATES ---
+# --- 💾 DATABASE MANAGER (THE MONEY MAKER) ---
+CSV_FILE = "leads.csv"
+
+def save_lead(client_id, phone):
+    # Create file with header if it doesn't exist
+    file_exists = os.path.isfile(CSV_FILE)
+    with open(CSV_FILE, "a", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(["Client", "Phone", "Date", "Time"])
+        
+        now = datetime.datetime.now()
+        writer.writerow([client_id, phone, now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")])
+
+# --- 🎨 ELITE UI TEMPLATES ---
 HTML_BASE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -74,7 +91,6 @@ HTML_BASE = """
         padding: 40px 30px; 
         box-shadow: 0 20px 40px rgba(0,0,0,0.08); 
         text-align: center; 
-        transition: transform 0.3s ease;
     }
 
     /* TYPOGRAPHY */
@@ -88,7 +104,7 @@ HTML_BASE = """
     .star:active { transform: scale(0.9); }
 
     /* INPUTS */
-    textarea { 
+    textarea, input[type="tel"] { 
         width: 100%; 
         padding: 16px; 
         border: 2px solid #eee; 
@@ -97,10 +113,9 @@ HTML_BASE = """
         font-size: 16px; 
         font-family: inherit; 
         outline: none; 
-        resize: none; 
         transition: border-color 0.2s;
     }
-    textarea:focus { border-color: #25D366; background: #fff; }
+    textarea:focus, input:focus { border-color: #25D366; background: #fff; }
 
     /* BUTTONS */
     .btn { 
@@ -113,7 +128,6 @@ HTML_BASE = """
         font-weight: 700; 
         cursor: pointer; 
         margin-top: 15px; 
-        transition: transform 0.1s, box-shadow 0.2s; 
         text-decoration: none;
     }
     .btn:active { transform: scale(0.98); }
@@ -134,11 +148,13 @@ HTML_BASE = """
     }
     .prize-title { color: #FF9F43; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; margin-bottom: 5px; }
     .prize-item { color: #333; font-size: 28px; font-weight: 900; margin: 10px 0; }
-    .prize-note { font-size: 13px; color: #888; margin-bottom: 0; }
-
-    /* REDEEMED STATE */
     .redeemed { opacity: 0.5; filter: grayscale(100%); background: #eee; border-color: #ccc; }
     .hidden { display: none; }
+    
+    /* DASHBOARD TABLE */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; text-align: left; }
+    th { border-bottom: 2px solid #ddd; padding: 10px; color: #333; }
+    td { border-bottom: 1px solid #eee; padding: 10px; color: #666; }
 </style>
 </head>
 <body>
@@ -153,7 +169,7 @@ HTML_BASE = """
 
 @app.get("/", response_class=HTMLResponse)
 def home_page():
-    return HTMLResponse(HTML_BASE.format(content="<h1>System Online ✅</h1><p>Please scan a specific QR code.</p>"))
+    return HTMLResponse(HTML_BASE.format(content="<h1>System Online ✅</h1><p>Ready.</p>"))
 
 # 1. RATING INTERFACE
 @app.api_route("/{client_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -165,7 +181,6 @@ async def rate_page(client_id: str, request: Request):
     content = f"""
     <h1>{client['name_en']}</h1>
     <p>How was your experience today?</p>
-    
     <form action="/process" method="post" id="ratingForm">
         <input type="hidden" name="client_id" value="{client_id}">
         <input type="hidden" name="stars" id="starsInput">
@@ -177,63 +192,89 @@ async def rate_page(client_id: str, request: Request):
             <span class="star" id="s5" onclick="rate(5)">★</span>
         </div>
     </form>
-    
     <script>
     function rate(n) {{
-        // Visual Update
         for(let i=1; i<=5; i++) {{
             let star = document.getElementById('s'+i);
             if(i <= n) star.classList.add('gold');
             else star.classList.remove('gold');
         }}
-        // Submit Logic
         document.getElementById('starsInput').value = n;
-        setTimeout(() => {{
-            document.getElementById('ratingForm').submit();
-        }}, 350); 
+        setTimeout(() => {{ document.getElementById('ratingForm').submit(); }}, 350); 
     }}
     </script>
     """
     return HTMLResponse(HTML_BASE.format(content=content))
 
-# 2. LOGIC ROUTER
+# 2. LOGIC ROUTER (THE GATE)
 @app.post("/process")
 def process_rating(client_id: str = Form(...), stars: int = Form(...)):
     client = CLIENTS.get(client_id)
     
-    # 4 or 5 Stars -> Check for Prize or Google
     if stars >= 4:
+        # IF PRIZE EXISTS -> GO TO CLAIM FORM (CAPTURE DATA)
         if client.get("prize"):
-            return RedirectResponse(f"/{client_id}/prize", status_code=303)
+            return RedirectResponse(f"/{client_id}/claim", status_code=303)
         else:
             return RedirectResponse(client['google_link'], status_code=303)
             
-    # 1, 2, 3 Stars -> Internal Feedback
     return RedirectResponse(f"/{client_id}/feedback", status_code=303)
 
-# 3. PRIZE PAGE (The Winner)
+# 3. CLAIM PAGE (THE TRAP)
+@app.get("/{client_id}/claim", response_class=HTMLResponse)
+def claim_page(client_id: str):
+    client = CLIENTS.get(client_id)
+    prize = client['prize']
+    
+    content = f"""
+    <div style="font-size: 50px; margin-bottom: 10px;">🎁</div>
+    <h1>You Won!</h1>
+    <p>You unlocked a special reward.</p>
+    
+    <div class="ticket-container">
+        <div class="prize-title">REWARD</div>
+        <div class="prize-item">{prize}</div>
+    </div>
+
+    <p style="font-size:14px; margin-bottom: 10px;">Enter your mobile number to activate coupon:</p>
+    
+    <form action="/unlock" method="post">
+        <input type="hidden" name="client_id" value="{client_id}">
+        <input type="tel" name="phone" placeholder="05xxxxxxxx" required style="text-align:center; letter-spacing: 1px;">
+        <button class="btn btn-primary">Unlock Prize 🔓</button>
+    </form>
+    """
+    return HTMLResponse(HTML_BASE.format(content=content))
+
+# 4. UNLOCK & SAVE DATA
+@app.post("/unlock")
+def unlock_prize(client_id: str = Form(...), phone: str = Form(...)):
+    # 💰 SAVE THE LEAD 💰
+    save_lead(client_id, phone)
+    # Redirect to final ticket
+    return RedirectResponse(f"/{client_id}/prize", status_code=303)
+
+# 5. PRIZE PAGE (THE WINNER TICKET)
 @app.get("/{client_id}/prize", response_class=HTMLResponse)
 def prize_page(client_id: str):
     client = CLIENTS.get(client_id)
-    prize_name = client.get("prize", "Special Gift")
+    prize_name = client.get("prize", "Gift")
     
     content = f"""
     <div id="activeTicket">
         <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
         <h1>Congratulations!</h1>
-        <p>You rated us 5 stars. As a thank you:</p>
+        <p>Your coupon is active.</p>
         
         <div class="ticket-container">
-            <div class="prize-title">You Won</div>
+            <div class="prize-title">VALID NEXT VISIT</div>
             <div class="prize-item">{prize_name}</div>
-            <p class="prize-note">Valid on your <strong>next visit</strong> with any purchase.</p>
         </div>
 
         <a href="{client['google_link']}" target="_blank" style="text-decoration:none;">
             <button class="btn btn-google">Step 1: Write Review ➜</button>
         </a>
         
-        <p style="margin-top:20px; font-size:14px;">Show this screen to cashier when claiming.</p>
         <button onclick="redeem()" class="btn btn-staff">🔘 Staff Redeem Button</button>
     </div>
 
@@ -241,71 +282,83 @@ def prize_page(client_id: str):
         <div class="ticket-container redeemed">
             <div class="prize-title">REDEEMED</div>
             <div class="prize-item">{prize_name}</div>
-            <p class="prize-note">This coupon has been used.</p>
         </div>
-        <p>Redeemed on:<br><span id="timeDate" style="font-weight:bold;"></span></p>
-        <button onclick="resetTest()" class="btn btn-reset">🔄 Reset (Dev Only)</button>
+        <p>Used on: <span id="timeDate"></span></p>
+        <button onclick="resetTest()" class="btn btn-reset">🔄 Reset Test</button>
     </div>
 
     <script>
         const storageKey = 'redeemed_{client_id}';
-
-        // Check Logic
         if (localStorage.getItem(storageKey) === 'true') {{
             showRedeemed();
         }}
-
         function redeem() {{
-            if (confirm('STAFF: Redeem this prize now? It will disappear forever.')) {{
+            if (confirm('STAFF: Redeem now?')) {{
                 localStorage.setItem(storageKey, 'true');
                 localStorage.setItem(storageKey + '_time', new Date().toLocaleString());
                 showRedeemed();
             }}
         }}
-
         function showRedeemed() {{
             document.getElementById('activeTicket').classList.add('hidden');
             document.getElementById('redeemedTicket').classList.remove('hidden');
             document.getElementById('timeDate').innerText = localStorage.getItem(storageKey + '_time');
         }}
-
         function resetTest() {{
-            if(confirm('Reset this coupon for testing?')) {{
-                localStorage.removeItem(storageKey);
-                location.reload();
-            }}
+            localStorage.removeItem(storageKey);
+            location.reload();
         }}
     </script>
     """
     return HTMLResponse(HTML_BASE.format(content=content))
 
-# 4. FEEDBACK PAGE
+# 6. FEEDBACK PAGE (BAD RATING)
 @app.get("/{client_id}/feedback", response_class=HTMLResponse)
 def feedback_page(client_id: str):
     client = CLIENTS.get(client_id)
     content = f"""
-    <div style="font-size: 50px; margin-bottom: 10px;">👋</div>
-    <h1>We appreciate your honesty</h1>
-    <p>Please tell the manager directly so we can fix it.</p>
-    
+    <h1>We are sorry 😔</h1>
+    <p>Please tell us how to improve.</p>
     <form action="/submit" method="post">
         <input type="hidden" name="client_id" value="{client_id}">
-        <textarea name="complaint" rows="5" placeholder="What went wrong? (Service, Food, etc.)" required></textarea>
+        <textarea name="complaint" rows="5" placeholder="Your feedback..." required></textarea>
         <button class="btn btn-primary">Send to Manager ➜</button>
     </form>
     """
     return HTMLResponse(HTML_BASE.format(content=content))
 
-# 5. SUBMIT TO WHATSAPP
+# 7. WHATSAPP SENDER
 @app.post("/submit")
 def submit_feedback(client_id: str = Form(...), complaint: str = Form(default="")):
     client = CLIENTS.get(client_id)
-    
-    # Formatted Message
     text = f"🚨 *Feedback for {client['name_en']}*\n\n{complaint}"
     wa_link = f"https://wa.me/{client['phone']}?text={urllib.parse.quote(text)}"
-    
     return RedirectResponse(wa_link, status_code=303)
+
+# 8. 🕵️ SECRET DASHBOARD (View Your Data)
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    rows = []
+    if os.path.isfile(CSV_FILE):
+        with open(CSV_FILE, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+    
+    table_rows = ""
+    for row in rows:
+        table_rows += f"<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>"
+
+    content = f"""
+    <h1>📊 Elite Leads</h1>
+    <p>Total Customers: {len(rows)-1 if rows else 0}</p>
+    <table>
+        <thead><tr><th>Client</th><th>Phone</th><th>Date</th></tr></thead>
+        <tbody>{table_rows}</tbody>
+    </table>
+    <br>
+    <a href="/" class="btn btn-reset">Back Home</a>
+    """
+    return HTMLResponse(HTML_BASE.format(content=content))
 
 if __name__ == "__main__":
     import uvicorn
