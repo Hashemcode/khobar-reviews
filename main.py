@@ -9,7 +9,6 @@ app = FastAPI()
 DB_NAME = "elite.db"
 
 # --- 🎨 CSS STYLING (SAUDI EDITION 🇸🇦) ---
-# Added dir="rtl" for Arabic layout
 HTML_BASE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -29,7 +28,7 @@ HTML_BASE = """
         .btn-staff { background:#333; color:white; opacity:0.8; font-size:14px; margin-top: 25px; }
         input, textarea { width:100%; padding:15px; border:2px solid #eee; border-radius:12px; font-size:16px; margin-bottom:15px; outline:none; font-family: 'Tajawal', sans-serif;}
         input:focus, textarea:focus { border-color:#25D366; }
-        .stars { font-size:45px; color:#ddd; margin:20px 0; cursor:pointer; direction: ltr; } /* Keep stars LTR for logic */
+        .stars { font-size:45px; color:#ddd; margin:20px 0; cursor:pointer; direction: ltr; }
         .gold { color:#FFD700; }
         .coupon-box { border:2px dashed #FF9F43; background:#FFFDF2; padding:20px; border-radius:15px; margin-bottom:20px; }
     </style>
@@ -96,8 +95,7 @@ def get_or_create_customer(phone, client_id):
         row = c.execute("SELECT id FROM customers WHERE phone=? AND client_id=?", (phone, client_id)).fetchone()
         if row:
             return row["id"]
-        
-        # ✅ FIX: Assign to 'cursor' to capture the ID safely
+        # FIXED: Use cursor to get ID
         cursor = c.execute("INSERT INTO customers (phone, client_id) VALUES (?, ?)", (phone, client_id))
         return cursor.lastrowid
 
@@ -126,7 +124,7 @@ def startup():
 def home():
     return HTMLResponse(HTML_BASE.replace("{content}", "<h1>النظام يعمل بنجاح ✅</h1><p>جاهز لاستقبال العملاء.</p>"))
 
-# 1. RATING PAGE (ARABIC)
+# 1. RATING PAGE
 @app.get("/{slug}", response_class=HTMLResponse)
 def rate_page(slug: str):
     with db() as c:
@@ -165,7 +163,7 @@ def process_rate(client_slug: str = Form(...), stars: int = Form(...)):
     else:
         return RedirectResponse(f"/feedback/{client_slug}", 303)
 
-# 3. CLAIM PAGE (ARABIC - CAPTURE PHONE)
+# 3. CLAIM PAGE
 @app.get("/claim/{slug}/{stars}", response_class=HTMLResponse)
 def claim_page(slug: str, stars: int):
     with db() as c:
@@ -185,7 +183,7 @@ def claim_page(slug: str, stars: int):
     """
     return HTMLResponse(HTML_BASE.replace("{content}", content))
 
-# 4. SAVE DATA & ISSUE COUPON
+# 4. SAVE DATA
 @app.post("/complete")
 def complete(client_slug: str = Form(...), stars: int = Form(...), phone: str = Form(...)):
     phone = normalize_phone(phone)
@@ -201,7 +199,7 @@ def complete(client_slug: str = Form(...), stars: int = Form(...), phone: str = 
     cid = issue_coupon(cust_id, client['prize'])
     return RedirectResponse(f"/coupon/{cid}", 303)
 
-# 5. COUPON PAGE (ARABIC)
+# 5. COUPON PAGE
 @app.get("/coupon/{cid}", response_class=HTMLResponse)
 def view_coupon(cid: str):
     with db() as c:
@@ -251,7 +249,7 @@ def redeem(cid: str = Form(...)):
         c.execute("UPDATE coupons SET redeemed_at=? WHERE id=?", (now, cid))
     return RedirectResponse(f"/coupon/{cid}", 303)
 
-# 7. FEEDBACK PAGE (ARABIC - BAD RATING)
+# 7. FEEDBACK PAGE
 @app.get("/feedback/{slug}", response_class=HTMLResponse)
 def feedback_page(slug: str):
     content = f"""
@@ -273,6 +271,85 @@ def save_feedback(slug: str = Form(...), msg: str = Form(...)):
                   (client['id'], msg, datetime.datetime.utcnow().isoformat()))
         
     return HTMLResponse(HTML_BASE.replace("{content}", "<h1>وصلت رسالتك ❤️</h1><p>شكراً لوقتك، بنتابع الموضوع ونتحسّن.</p>"))
+
+# 8. 📊 MANAGER DASHBOARD (The Secret Admin Page)
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(key: str = ""):
+    # 🔒 Password Protection (Simple)
+    if key != "123": 
+        return HTMLResponse("<h1 style='color:red; text-align:center; margin-top:50px;'>⛔ ممنوع الدخول (Access Denied)</h1>")
+
+    with db() as c:
+        customers = c.execute("SELECT * FROM customers").fetchall()
+        coupons = c.execute("SELECT * FROM coupons").fetchall()
+        feedback = c.execute("SELECT * FROM feedback").fetchall()
+
+    def make_rows(rows, cols):
+        html = ""
+        for r in rows:
+            html += "<tr>" + "".join(f"<td>{r[col]}</td>" for col in cols) + "</tr>"
+        return html
+
+    style = """
+    <style>
+        body { font-family: 'Tajawal', sans-serif; direction: rtl; padding: 20px; background: #f4f7f6; display: block !important; }
+        h2 { color: #333; border-bottom: 2px solid #25D366; padding-bottom: 10px; margin-top: 40px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        th { background: #333; color: white; padding: 12px; text-align: right; }
+        td { padding: 12px; border-bottom: 1px solid #eee; color: #555; }
+        tr:hover { background: #f9f9f9; }
+        .stat-card { display: inline-block; background: white; padding: 20px; border-radius: 12px; margin-left: 15px; width: 150px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .stat-num { font-size: 30px; font-weight: bold; color: #25D366; display: block; }
+    </style>
+    """
+
+    content = f"""
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+        <title>لوحة المدير</title>
+        <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+        {style}
+    </head>
+    <body>
+        <h1 style="text-align:center">📊 لوحة التحكم (Manager Dashboard)</h1>
+        
+        <div style="text-align:center; margin-bottom: 30px;">
+            <div class="stat-card">
+                <span class="stat-num">{len(customers)}</span>
+                عملاء
+            </div>
+            <div class="stat-card">
+                <span class="stat-num">{len(coupons)}</span>
+                كوبونات
+            </div>
+            <div class="stat-card">
+                <span class="stat-num">{len(feedback)}</span>
+                شكاوي
+            </div>
+        </div>
+
+        <h2>👥 أرقام العملاء (VIP Database)</h2>
+        <table>
+            <thead><tr><th>ID</th><th>رقم الجوال</th><th>ID المتجر</th></tr></thead>
+            <tbody>{make_rows(customers, ['id', 'phone', 'client_id'])}</tbody>
+        </table>
+
+        <h2>📩 الشكاوي (Feedback)</h2>
+        <table>
+            <thead><tr><th>الرسالة</th><th>التاريخ</th></tr></thead>
+            <tbody>{make_rows(feedback, ['message', 'created_at'])}</tbody>
+        </table>
+        
+        <h2>🎟️ الكوبونات المصدرة</h2>
+        <table>
+            <thead><tr><th>الهدية</th><th>تاريخ الانتهاء</th><th>تاريخ الاستخدام</th></tr></thead>
+            <tbody>{make_rows(coupons, ['reward', 'expires_at', 'redeemed_at'])}</tbody>
+        </table>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content)
 
 if __name__ == "__main__":
     import uvicorn
