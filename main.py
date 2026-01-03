@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 import sqlite3
 import uuid
@@ -9,7 +9,6 @@ app = FastAPI()
 DB_NAME = "elite.db"
 
 # --- 🎨 CSS STYLING (SAFE MODE) ---
-# Note: We use a placeholder {content} that we will swap out manually.
 HTML_BASE = """
 <!DOCTYPE html>
 <html>
@@ -101,8 +100,10 @@ def get_or_create_customer(phone, client_id):
         row = c.execute("SELECT id FROM customers WHERE phone=? AND client_id=?", (phone, client_id)).fetchone()
         if row:
             return row["id"]
-        c.execute("INSERT INTO customers (phone, client_id) VALUES (?, ?)", (phone, client_id))
-        return c.lastrowid
+        
+        # ✅ THE FIX: Assign to 'cursor' to get lastrowid safely
+        cursor = c.execute("INSERT INTO customers (phone, client_id) VALUES (?, ?)", (phone, client_id))
+        return cursor.lastrowid
 
 def issue_coupon(customer_id, reward):
     cid = str(uuid.uuid4())
@@ -284,3 +285,7 @@ def save_feedback(slug: str = Form(...), msg: str = Form(...)):
                   (client['id'], msg, datetime.datetime.utcnow().isoformat()))
         
     return HTMLResponse(HTML_BASE.replace("{content}", "<h1>Thank You</h1><p>Your message has been sent.</p>"))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
