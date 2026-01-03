@@ -8,7 +8,8 @@ import re
 app = FastAPI()
 DB_NAME = "elite.db"
 
-# --- 🎨 CSS STYLING (Looks like an App) ---
+# --- 🎨 CSS STYLING (SAFE MODE) ---
+# Note: We use a placeholder {content} that we will swap out manually.
 HTML_BASE = """
 <!DOCTYPE html>
 <html>
@@ -119,16 +120,17 @@ def startup():
     init_db()
     # ✨ AUTO-BOOTSTRAP: Add your clients here so they exist in DB
     with db() as c:
-        # Example 1: Owl
+        # Example 1: Owl (REPLACE LINKS WITH REAL ONES)
         c.execute("""INSERT OR IGNORE INTO clients (slug, name, google_link, prize) 
-            VALUES ('owl', 'Owl Bakehouse', 'https://goo.gl/maps/YOUR_REAL_LINK_HERE', 'Free Cookie 🍪')""")
-        # Example 2: Unico
+            VALUES ('owl', 'Owl Bakehouse', 'https://goo.gl/maps/PLACEHOLDER', 'Free Cookie 🍪')""")
+        
+        # Example 2: Unico (REPLACE LINKS WITH REAL ONES)
         c.execute("""INSERT OR IGNORE INTO clients (slug, name, google_link, prize) 
-            VALUES ('unico', 'Unico Cafe', 'https://goo.gl/maps/YOUR_REAL_LINK_HERE', 'Free Coffee ☕')""")
+            VALUES ('unico', 'Unico Cafe', 'https://goo.gl/maps/PLACEHOLDER', 'Free Coffee ☕')""")
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return HTMLResponse(HTML_BASE.format(content="<h1>System Online 🟢</h1><p>Ready for customers.</p>"))
+    return HTMLResponse(HTML_BASE.replace("{content}", "<h1>System Online 🟢</h1><p>Ready for customers.</p>"))
 
 # 1. RATING PAGE
 @app.get("/{slug}", response_class=HTMLResponse)
@@ -137,7 +139,7 @@ def rate_page(slug: str):
         client = c.execute("SELECT * FROM clients WHERE slug=?", (slug,)).fetchone()
     if not client: return HTMLResponse("Client not found", 404)
 
-    return HTMLResponse(HTML_BASE.format(content=f"""
+    content = f"""
         <h1>{client['name']}</h1>
         <p>How was your experience?</p>
         <form action="/rate" method="post" id="rForm">
@@ -158,7 +160,8 @@ def rate_page(slug: str):
                 setTimeout(() => document.getElementById('rForm').submit(), 300);
             }}
         </script>
-    """))
+    """
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 2. PROCESS RATING (Logic Split)
 @app.post("/rate")
@@ -176,7 +179,7 @@ def claim_page(slug: str, stars: int):
     with db() as c:
         client = c.execute("SELECT * FROM clients WHERE slug=?", (slug,)).fetchone()
     
-    return HTMLResponse(HTML_BASE.format(content=f"""
+    content = f"""
         <div style="font-size:50px">🎁</div>
         <h1>You Won!</h1>
         <p>Because you rated us {stars} stars, you unlocked: <strong>{client['prize']}</strong></p>
@@ -187,7 +190,8 @@ def claim_page(slug: str, stars: int):
             <input type="tel" name="phone" placeholder="05xxxxxxxx" required>
             <button class="btn btn-primary">Unlock Prize 🔓</button>
         </form>
-    """))
+    """
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 4. SAVE DATA & ISSUE COUPON
 @app.post("/complete")
@@ -222,12 +226,13 @@ def view_coupon(cid: str):
     if not row: return HTMLResponse("Invalid Coupon")
 
     if row['redeemed_at']:
-        return HTMLResponse(HTML_BASE.format(content=f"""
+        content = f"""
             <h2 style="color:#aaa">❌ Redeemed</h2>
             <p>Used on: {row['redeemed_at'][:10]}</p>
-        """))
+        """
+        return HTMLResponse(HTML_BASE.replace("{content}", content))
 
-    return HTMLResponse(HTML_BASE.format(content=f"""
+    content = f"""
         <div style="font-size:50px">🎉</div>
         <h1>Congratulations!</h1>
         <div class="coupon-box">
@@ -246,7 +251,8 @@ def view_coupon(cid: str):
             <input type="hidden" name="cid" value="{cid}">
             <button class="btn btn-staff">🔘 Mark as Used</button>
         </form>
-    """))
+    """
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 # 6. REDEEM ACTION
 @app.post("/redeem")
@@ -259,7 +265,7 @@ def redeem(cid: str = Form(...)):
 # 7. FEEDBACK PAGE (Bad Rating)
 @app.get("/feedback/{slug}", response_class=HTMLResponse)
 def feedback_page(slug: str):
-    return HTMLResponse(HTML_BASE.format(content=f"""
+    content = f"""
         <h1>We're Sorry 😔</h1>
         <p>Please tell us what went wrong so we can fix it.</p>
         <form action="/feedback_submit" method="post">
@@ -267,15 +273,14 @@ def feedback_page(slug: str):
             <textarea name="msg" placeholder="Your feedback..." required></textarea>
             <button class="btn btn-primary">Send to Manager</button>
         </form>
-    """))
+    """
+    return HTMLResponse(HTML_BASE.replace("{content}", content))
 
 @app.post("/feedback_submit")
 def save_feedback(slug: str = Form(...), msg: str = Form(...)):
-    # Here you would ideally look up client phone and send WhatsApp
-    # For now, we just save to DB
     with db() as c:
         client = c.execute("SELECT id FROM clients WHERE slug=?", (slug,)).fetchone()
         c.execute("INSERT INTO feedback (client_id, message, created_at) VALUES (?,?,?)", 
                   (client['id'], msg, datetime.datetime.utcnow().isoformat()))
         
-    return HTMLResponse(HTML_BASE.format(content="<h1>Thank You</h1><p>Your message has been sent.</p>"))
+    return HTMLResponse(HTML_BASE.replace("{content}", "<h1>Thank You</h1><p>Your message has been sent.</p>"))
